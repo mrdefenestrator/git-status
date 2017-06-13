@@ -274,7 +274,7 @@ func getPullPushCounts(repo string, remote string) (unpulled int, unpushed int) 
 }
 
 func getDeltas(repo string) int {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := exec.Command("git", "status", "--porcelain=1")
 	cmd.Dir = repo
 	var out bytes.Buffer
 	cmd.Stdout = &out
