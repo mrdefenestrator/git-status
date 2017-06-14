@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -26,68 +25,91 @@ type RepoStatus struct {
 	ShouldReport bool
 }
 
+// Action x
+type Action int
+
+// x
+const (
+	None Action = iota
+	Add
+	Delete
+	List
+)
+
 const storeName string = ".git-status"
 
 var registered []string
-var regTarget string
-var delTarget string
-var listReg bool
+var paths []string
+var action Action
 var store string
 var showAll bool
 
 func init() {
 	var err error
-	help := false
-	flag.StringVar(&regTarget, "add", "", "Add a path to monitor")
-	flag.StringVar(&delTarget, "delete", "", "Stop monitoring a path")
-	flag.BoolVar(&listReg, "list", false, "List registered paths")
-	flag.BoolVar(&showAll, "a", false, "Show all")
-	flag.BoolVar(&help, "h", false, "Show this help")
 
-	flag.Parse()
-
-	if help {
-		flag.PrintDefaults()
-		os.Exit(1)
+	for _, arg := range os.Args[1:] {
+		switch strings.ToUpper(arg) {
+		case "-ADD":
+			if action != None {
+				fmt.Println("conflicting action flags provided")
+				os.Exit(1)
+			}
+			action = Add
+			break
+		case "-DELETE":
+			if action != None {
+				fmt.Println("conflicting action flags provided")
+				os.Exit(1)
+			}
+			action = Delete
+			break
+		case "-A":
+			showAll = true
+			break
+		case "-LIST":
+			if action != None {
+				fmt.Println("conflicting action flags provided")
+				os.Exit(1)
+			}
+			action = List
+			break
+		default:
+			abs, err := filepath.Abs(arg)
+			if err != nil {
+				fmt.Println("error parsing path:", err.Error())
+				os.Exit(1)
+			}
+			paths = append(paths, abs)
+			break
+		}
 	}
 
 	usr, err := user.Current()
 	if err != nil {
 		fmt.Println("error finding home dir:", err.Error())
-		os.Exit(3)
+		os.Exit(1)
 	}
 	store = path.Join(usr.HomeDir, storeName)
-
-	if regTarget != "" {
-		regTarget, err = filepath.Abs(regTarget)
-		if err != nil {
-			fmt.Println("error parsing new path")
-			os.Exit(4)
-		}
-	}
-	if delTarget != "" {
-		delTarget, err = filepath.Abs(delTarget)
-		if err != nil {
-			fmt.Println("error parsing path to delete")
-			os.Exit(4)
-		}
-	}
 }
 
 func main() {
 	err := testGit()
 	if err != nil {
 		fmt.Println("git could not be found:", err.Error())
-		os.Exit(2)
+		os.Exit(1)
 	}
 	loadRegistered()
-	if delTarget != "" {
-		removePath(delTarget)
-	} else if regTarget != "" {
-		registerPath(regTarget)
-	} else if listReg {
+	switch action {
+	case Add:
+		registerPaths(paths)
+		break
+	case Delete:
+		removePaths(paths)
+		break
+	case List:
 		listRegistered()
-	} else {
+		break
+	default:
 		getStatuses()
 	}
 }
@@ -114,7 +136,7 @@ func loadRegistered() {
 	}
 	if err != nil {
 		fmt.Println("could not read registered repos")
-		os.Exit(5)
+		os.Exit(1)
 	}
 	registered = strings.Split(string(raw), "\n")
 	if registered[len(registered)-1] == "" {
@@ -129,7 +151,7 @@ func listRegistered() {
 	}
 }
 
-func removePath(except string) {
+func removePaths(except []string) {
 	os.Remove(store)
 	f, err := os.OpenFile(store, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
@@ -140,31 +162,33 @@ func removePath(except string) {
 	}
 	defer f.Close()
 	for _, path := range registered {
-		if path != except {
+		if !contains(except, path) {
 			f.WriteString(path + "\n")
 		}
 	}
 }
 
-func registerPath(target string) {
-	if contains(registered, target) {
-		fmt.Println(target, "is already registered")
-		return
-	}
-
-	dotgitpath := path.Join(target, ".git")
-	dotgit, err := os.Stat(dotgitpath)
-	if err != nil || !dotgit.IsDir() {
-		fmt.Println("target directory does not appear to be a git repo:", err.Error())
-		os.Exit(3)
-	}
-
+func registerPaths(targets []string) {
 	f, err := os.OpenFile(store, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		fmt.Println("error registering path:", err.Error())
 	}
 	defer f.Close()
-	f.WriteString(target + "\n")
+	for _, target := range targets {
+		if contains(registered, target) {
+			fmt.Println(target, "is already registered")
+			continue
+		}
+
+		dotgitpath := path.Join(target, ".git")
+		dotgit, err := os.Stat(dotgitpath)
+		if err != nil || !dotgit.IsDir() {
+			fmt.Println(target, "does not appear to be a git repo:", err.Error())
+			continue
+		}
+
+		f.WriteString(target + "\n")
+	}
 }
 
 func getStatuses() {
