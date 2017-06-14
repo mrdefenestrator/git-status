@@ -47,40 +47,30 @@ var showAll bool
 func init() {
 	var err error
 
-	for _, arg := range os.Args[1:] {
-		switch strings.ToUpper(arg) {
+	if len(os.Args) >= 2 {
+		switch strings.ToUpper(os.Args[1]) {
 		case "-ADD":
-			if action != None {
-				fmt.Println("conflicting action flags provided")
-				os.Exit(1)
-			}
 			action = Add
 			break
 		case "-DELETE":
-			if action != None {
-				fmt.Println("conflicting action flags provided")
-				os.Exit(1)
-			}
 			action = Delete
+			break
+		case "-LIST":
+			action = List
 			break
 		case "-A":
 			showAll = true
 			break
-		case "-LIST":
-			if action != None {
-				fmt.Println("conflicting action flags provided")
-				os.Exit(1)
-			}
-			action = List
-			break
-		default:
+		}
+	}
+	if len(os.Args) >= 3 {
+		for _, arg := range os.Args[2:] {
 			abs, err := filepath.Abs(arg)
 			if err != nil {
 				fmt.Println("error parsing path:", err.Error())
 				os.Exit(1)
 			}
 			paths = append(paths, abs)
-			break
 		}
 	}
 
@@ -93,7 +83,7 @@ func init() {
 }
 
 func main() {
-	err := testGit()
+	_, err := exec.LookPath("git")
 	if err != nil {
 		fmt.Println("git could not be found:", err.Error())
 		os.Exit(1)
@@ -123,10 +113,11 @@ func contains(array []string, target string) bool {
 	return false
 }
 
-func testGit() (err error) {
-	git := exec.Command("git", "help")
-	err = git.Run()
-	return err
+func padRight(str string, length int) string {
+	for len(str) < length {
+		str += " "
+	}
+	return str
 }
 
 func loadRegistered() {
@@ -180,10 +171,8 @@ func registerPaths(targets []string) {
 			continue
 		}
 
-		dotgitpath := path.Join(target, ".git")
-		dotgit, err := os.Stat(dotgitpath)
-		if err != nil || !dotgit.IsDir() {
-			fmt.Println(target, "does not appear to be a git repo:", err.Error())
+		if !isRepo(target) {
+			fmt.Println(target, "does not appear to be a git repo")
 			continue
 		}
 
@@ -191,11 +180,24 @@ func registerPaths(targets []string) {
 	}
 }
 
+func isRepo(dir string) bool {
+	dotgitpath := path.Join(dir, ".git")
+	dotgit, err := os.Stat(dotgitpath)
+	if err != nil || !dotgit.IsDir() {
+		return false
+	}
+	return true
+}
+
 func getStatuses() {
 	repos := make([]RepoStatus, len(registered))
 	nameWidth := 0
 	branchWidth := 0
 	for i, path := range registered {
+		if !isRepo(path) {
+			fmt.Println(path, "no longer appears to be a git repo, unregistering")
+			removePaths([]string{path})
+		}
 		repo := getStatus(path)
 		if (repo.ShouldReport || showAll) && len(repo.Name) > nameWidth {
 			nameWidth = len(repo.Name)
@@ -207,7 +209,7 @@ func getStatuses() {
 	}
 	for _, repo := range repos {
 		if repo.ShouldReport {
-			fmt.Printf("%-"+strconv.Itoa(nameWidth)+"s (%-"+strconv.Itoa(branchWidth)+"s) ", repo.Name, repo.RemoteBranch)
+			fmt.Printf("%s (%s) ", padRight(repo.Name, nameWidth), padRight(repo.RemoteBranch, branchWidth))
 			cyan := color.New(color.FgCyan).PrintfFunc()
 			yellow := color.New(color.FgYellow).PrintfFunc()
 			if repo.Unpushed > 0 {
@@ -240,16 +242,11 @@ func getStatus(repo string) (status RepoStatus) {
 }
 
 func getRepoName(repo string) string {
-	cmd := exec.Command("git", "config", "--get", "remote.origin.url")
-	cmd.Dir = repo
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	remote, err := getCmdOutput(repo, "git", "config", "--get", "remote.origin.url")
 	if err != nil {
 		fmt.Println("error getting repo name:", err.Error())
 		return ""
 	}
-	remote := strings.TrimSpace(out.String())
 	slash := strings.LastIndex(remote, "/")
 	if slash != -1 {
 		remote = remote[slash+1:]
@@ -259,63 +256,56 @@ func getRepoName(repo string) string {
 }
 
 func getRemote(repo string) string {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
-	cmd.Dir = repo
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	raw, err := getCmdOutput(repo, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
 	if err != nil {
 		fmt.Println("error getting remote branch name:", err.Error())
 		return ""
 	}
-	remote := strings.TrimSpace(out.String())
-	return remote
+	return raw
 }
 
 func getUnpulled(repo string, remote string) (unpulled int) {
-	cmd := exec.Command("git", "rev-list", "--count", "HEAD.."+remote)
-	cmd.Dir = repo
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	raw, err := getCmdOutput(repo, "git", "rev-list", "--count", "HEAD.."+remote)
 	if err != nil {
 		fmt.Println("error getting remote branch name:", err.Error())
 		return -1
 	}
-	num := strings.TrimSpace(out.String())
-	unpulled, err = strconv.Atoi(num)
+	unpulled, err = strconv.Atoi(raw)
 	return unpulled
 }
 
 func getUnpushed(repo string, remote string) (unpushed int) {
-	cmd := exec.Command("git", "rev-list", "--count", remote+"..HEAD")
-	cmd.Dir = repo
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	raw, err := getCmdOutput(repo, "git", "rev-list", "--count", remote+"..HEAD")
 	if err != nil {
 		fmt.Println("error getting remote branch name:", err.Error())
 		return -1
 	}
-	num := strings.TrimSpace(out.String())
-	unpushed, err = strconv.Atoi(num)
+	unpushed, err = strconv.Atoi(raw)
 	return unpushed
 }
 
 func getDeltas(repo string) int {
-	cmd := exec.Command("git", "status", "--porcelain=1")
-	cmd.Dir = repo
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	raw, err := getCmdOutput(repo, "git", "status", "--porcelain=1")
 	if err != nil {
 		fmt.Println("error getting remote branch name:", err.Error())
 		return -1
 	}
-	raw := strings.TrimSpace(out.String())
 	lines := strings.Split(raw, "\n")
 	if len(lines) == 1 && lines[0] == "" {
 		return 0
 	}
 	return len(lines)
+}
+
+func getCmdOutput(workingDir string, name string, arg ...string) (string, error) {
+	cmd := exec.Command(name, arg...)
+	cmd.Dir = workingDir
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	raw := strings.TrimSpace(out.String())
+	return raw, nil
 }
