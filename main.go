@@ -197,15 +197,14 @@ func getStatuses() {
 	branchWidth := 0
 	for i, path := range registered {
 		repo := getStatus(path)
-		if len(repo.Name) > nameWidth {
+		if (repo.ShouldReport || showAll) && len(repo.Name) > nameWidth {
 			nameWidth = len(repo.Name)
 		}
-		if len(repo.RemoteBranch) > branchWidth {
+		if (repo.ShouldReport || showAll) && len(repo.RemoteBranch) > branchWidth {
 			branchWidth = len(repo.RemoteBranch)
 		}
 		repos[i] = repo
 	}
-	nameWidth++
 	for _, repo := range repos {
 		if repo.ShouldReport {
 			fmt.Printf("%-"+strconv.Itoa(nameWidth)+"s (%-"+strconv.Itoa(branchWidth)+"s) ", repo.Name, repo.RemoteBranch)
@@ -231,7 +230,8 @@ func getStatuses() {
 func getStatus(repo string) (status RepoStatus) {
 	status.Name = getRepoName(repo)
 	status.RemoteBranch = getRemote(repo)
-	status.Unpulled, status.Unpushed = getPullPushCounts(repo, status.RemoteBranch)
+	status.Unpulled = getUnpulled(repo, status.RemoteBranch)
+	status.Unpushed = getUnpushed(repo, status.RemoteBranch)
 	status.Deltas = getDeltas(repo)
 
 	status.ShouldReport = status.Unpulled > 0 || status.Unpushed > 0 || status.Deltas > 0
@@ -272,29 +272,34 @@ func getRemote(repo string) string {
 	return remote
 }
 
-func getPullPushCounts(repo string, remote string) (unpulled int, unpushed int) {
-	cmd := exec.Command("git", "rev-list", "--count", "--left-right", remote+"..HEAD")
+func getUnpulled(repo string, remote string) (unpulled int) {
+	cmd := exec.Command("git", "rev-list", "--count", "HEAD.."+remote)
 	cmd.Dir = repo
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
 		fmt.Println("error getting remote branch name:", err.Error())
-		return -1, -1
+		return -1
 	}
-	nums := strings.TrimSpace(out.String())
-	parts := strings.Split(nums, "\t")
-	unpulled, err = strconv.Atoi(parts[0])
+	num := strings.TrimSpace(out.String())
+	unpulled, err = strconv.Atoi(num)
+	return unpulled
+}
+
+func getUnpushed(repo string, remote string) (unpushed int) {
+	cmd := exec.Command("git", "rev-list", "--count", remote+"..HEAD")
+	cmd.Dir = repo
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
 	if err != nil {
-		fmt.Println("error reading unpulled commits:", err.Error())
-		return -1, -1
+		fmt.Println("error getting remote branch name:", err.Error())
+		return -1
 	}
-	unpushed, err = strconv.Atoi(parts[1])
-	if err != nil {
-		fmt.Println("error reading unpushed commits:", err.Error())
-		return -1, -1
-	}
-	return unpulled, unpushed
+	num := strings.TrimSpace(out.String())
+	unpushed, err = strconv.Atoi(num)
+	return unpushed
 }
 
 func getDeltas(repo string) int {
