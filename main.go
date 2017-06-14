@@ -34,6 +34,7 @@ const (
 	Add
 	Delete
 	List
+	Help
 )
 
 const storeName string = ".git-status"
@@ -49,21 +50,41 @@ func init() {
 
 	if len(os.Args) >= 2 {
 		switch strings.ToUpper(os.Args[1]) {
+		case "+":
+			fallthrough
 		case "-ADD":
 			action = Add
-			break
+		case "-":
+			fallthrough
+		case "-D":
+			fallthrough
+		case "-DEL":
+			fallthrough
 		case "-DELETE":
+			fallthrough
+		case "-R":
+			fallthrough
+		case "-REMOVE":
 			action = Delete
-			break
+		case "-L":
+			fallthrough
+		case "-LS":
+			fallthrough
 		case "-LIST":
 			action = List
-			break
 		case "-A":
+			fallthrough
+		case "-ALL":
 			showAll = true
-			break
+		case "-H":
+			fallthrough
+		case "-HELP":
+			fallthrough
+		case "/?":
+			action = Help
 		}
 	}
-	if len(os.Args) >= 3 {
+	if len(os.Args) >= 3 && (action == Add || action == Delete) {
 		for _, arg := range os.Args[2:] {
 			abs, err := filepath.Abs(arg)
 			if err != nil {
@@ -92,16 +113,25 @@ func main() {
 	switch action {
 	case Add:
 		registerPaths(paths)
-		break
 	case Delete:
 		removePaths(paths)
-		break
 	case List:
 		listRegistered()
-		break
+	case Help:
+		printUsage()
 	default:
 		getStatuses()
 	}
+}
+
+func printUsage() {
+	usage := `git-status [-add|-delete paths...]|[-list|-a|-h]
+  -add     Add a folder to monitor
+  -delete  Remove a folder, stop monitoring
+  -list    List all monitored paths
+  -a       Show status on all registered paths
+  -h       Show this help`
+	fmt.Println(usage)
 }
 
 func contains(array []string, target string) bool {
