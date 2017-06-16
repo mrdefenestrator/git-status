@@ -52,11 +52,15 @@ func init() {
 		switch strings.ToUpper(os.Args[1]) {
 		case "+":
 			fallthrough
+		case "--ADD":
+			fallthrough
 		case "-ADD":
 			action = Add
 		case "-":
 			fallthrough
 		case "-D":
+			fallthrough
+		case "--DEL":
 			fallthrough
 		case "-DEL":
 			fallthrough
@@ -64,19 +68,29 @@ func init() {
 			fallthrough
 		case "-R":
 			fallthrough
+		case "--REMOVE":
+			fallthrough
 		case "-REMOVE":
 			action = Delete
 		case "-L":
 			fallthrough
 		case "-LS":
 			fallthrough
+		case "--LS":
+			fallthrough
+		case "--LIST":
+			fallthrough
 		case "-LIST":
 			action = List
 		case "-A":
 			fallthrough
+		case "--ALL":
+			fallthrough
 		case "-ALL":
 			showAll = true
 		case "-H":
+			fallthrough
+		case "--HELP":
 			fallthrough
 		case "-HELP":
 			fallthrough
@@ -93,6 +107,8 @@ func init() {
 			}
 			paths = append(paths, abs)
 		}
+	} else {
+		action = Help
 	}
 
 	usr, err := user.Current()
