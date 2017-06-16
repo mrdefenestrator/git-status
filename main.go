@@ -98,17 +98,19 @@ func init() {
 			action = Help
 		}
 	}
-	if len(os.Args) >= 3 && (action == Add || action == Delete) {
-		for _, arg := range os.Args[2:] {
-			abs, err := filepath.Abs(arg)
-			if err != nil {
-				fmt.Println("error parsing path:", err.Error())
-				os.Exit(1)
+	if action == Add || action == Delete {
+		if len(os.Args) >= 3 {
+			for _, arg := range os.Args[2:] {
+				abs, err := filepath.Abs(arg)
+				if err != nil {
+					fmt.Println("error parsing path:", err.Error())
+					os.Exit(1)
+				}
+				paths = append(paths, abs)
 			}
-			paths = append(paths, abs)
+		} else {
+			action = Help
 		}
-	} else {
-		action = Help
 	}
 
 	usr, err := user.Current()
