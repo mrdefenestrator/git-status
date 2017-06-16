@@ -297,7 +297,7 @@ func getRemote(repo string) string {
 func getUnpulled(repo string, remote string) (unpulled int) {
 	raw, err := getCmdOutput(repo, "git", "rev-list", "--count", "HEAD.."+remote)
 	if err != nil {
-		fmt.Println("error getting remote branch name:", err.Error())
+		fmt.Println("error getting unpulled count:", err.Error())
 		return -1
 	}
 	unpulled, err = strconv.Atoi(raw)
@@ -307,7 +307,7 @@ func getUnpulled(repo string, remote string) (unpulled int) {
 func getUnpushed(repo string, remote string) (unpushed int) {
 	raw, err := getCmdOutput(repo, "git", "rev-list", "--count", remote+"..HEAD")
 	if err != nil {
-		fmt.Println("error getting remote branch name:", err.Error())
+		fmt.Println("error getting unpushed count:", err.Error())
 		return -1
 	}
 	unpushed, err = strconv.Atoi(raw)
@@ -315,9 +315,9 @@ func getUnpushed(repo string, remote string) (unpushed int) {
 }
 
 func getDeltas(repo string) int {
-	raw, err := getCmdOutput(repo, "git", "status", "--porcelain=1")
+	raw, err := getCmdOutput(repo, "git", "status", "--porcelain")
 	if err != nil {
-		fmt.Println("error getting remote branch name:", err.Error())
+		fmt.Println("error getting deltas count:", err.Error())
 		return -1
 	}
 	lines := strings.Split(raw, "\n")
