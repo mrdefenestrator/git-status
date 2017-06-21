@@ -17,12 +17,13 @@ import (
 
 // RepoStatus x
 type RepoStatus struct {
-	Name         string
-	RemoteBranch string
-	Unpulled     int
-	Unpushed     int
-	Deltas       int
-	ShouldReport bool
+	Name              string
+	RemoteBranch      string
+	RemoteBranchError bool
+	Unpulled          int
+	Unpushed          int
+	Deltas            int
+	ShouldReport      bool
 }
 
 // Action x
@@ -257,9 +258,16 @@ func getStatuses() {
 	}
 	for _, repo := range repos {
 		if repo.ShouldReport {
-			fmt.Printf("%s (%s) ", padRight(repo.Name, nameWidth), padRight(repo.RemoteBranch, branchWidth))
 			cyan := color.New(color.FgCyan).PrintfFunc()
 			yellow := color.New(color.FgYellow).PrintfFunc()
+			red := color.New(color.FgRed).PrintfFunc()
+			fmt.Printf("%s (", padRight(repo.Name, nameWidth))
+			if repo.RemoteBranchError {
+				red("%s", padRight("!ERROR!", branchWidth))
+			} else {
+				fmt.Printf("%s", padRight(repo.RemoteBranch, branchWidth))
+			}
+			fmt.Printf(") ")
 			if repo.Unpushed > 0 {
 				cyan("↑%d ", repo.Unpushed)
 			}
@@ -278,13 +286,15 @@ func getStatuses() {
 }
 
 func getStatus(repo string) (status RepoStatus) {
+	var err error
 	status.Name = getRepoName(repo)
-	status.RemoteBranch = getRemote(repo)
+	status.RemoteBranch, err = getRemote(repo)
+	status.RemoteBranchError = err != nil
 	status.Unpulled = getUnpulled(repo, status.RemoteBranch)
 	status.Unpushed = getUnpushed(repo, status.RemoteBranch)
 	status.Deltas = getDeltas(repo)
 
-	status.ShouldReport = status.Unpulled > 0 || status.Unpushed > 0 || status.Deltas > 0
+	status.ShouldReport = status.Unpulled > 0 || status.Unpushed > 0 || status.Deltas > 0 || status.RemoteBranchError
 
 	return status
 }
@@ -303,13 +313,12 @@ func getRepoName(repo string) string {
 	return remote
 }
 
-func getRemote(repo string) string {
+func getRemote(repo string) (string, error) {
 	raw, err := getCmdOutput(repo, "git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
 	if err != nil {
-		fmt.Println("error getting remote branch name:", err.Error())
-		return ""
+		return "", err
 	}
-	return raw
+	return raw, nil
 }
 
 func getUnpulled(repo string, remote string) (unpulled int) {
