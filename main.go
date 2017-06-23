@@ -178,9 +178,14 @@ func loadRegistered() {
 		fmt.Println("could not read registered repos")
 		os.Exit(1)
 	}
-	registered = strings.Split(string(raw), "\n")
-	if registered[len(registered)-1] == "" {
-		registered = registered[0 : len(registered)-1]
+	lines := strings.Split(string(raw), "\n")
+
+	// Filter blank and "#" commented lines
+	for _, line := range lines {
+		path := strings.TrimSpace(line)
+		if len(path) != 0 && !strings.HasPrefix(path, "#") {
+			registered = append(registered, path)
+		}
 	}
 }
 
