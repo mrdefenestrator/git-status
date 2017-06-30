@@ -190,7 +190,14 @@ func loadRegistered() {
 }
 
 func listRegistered() {
-	fmt.Println(len(registered), "path(s) registered:")
+	switch len(registered) {
+	case 0:
+		fmt.Println("No paths registered")
+	case 1:
+		fmt.Println("1 path registered:")
+	default:
+		fmt.Println(len(registered), "paths registered:")
+	}
 	for _, dir := range registered {
 		fmt.Println("  " + dir)
 	}
