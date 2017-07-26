@@ -39,6 +39,8 @@ const (
 )
 
 const storeName string = ".git-status"
+const commentIndicator string = "#"
+const permissions os.FileMode = 0644
 
 var registered []string
 var paths []string
@@ -57,6 +59,7 @@ func init() {
 			fallthrough
 		case "-ADD":
 			action = Add
+
 		case "-":
 			fallthrough
 		case "-D":
@@ -67,12 +70,15 @@ func init() {
 			fallthrough
 		case "-DELETE":
 			fallthrough
+		case "--DELETE":
+			fallthrough
 		case "-R":
 			fallthrough
 		case "--REMOVE":
 			fallthrough
 		case "-REMOVE":
 			action = Delete
+
 		case "-L":
 			fallthrough
 		case "-LS":
@@ -83,12 +89,14 @@ func init() {
 			fallthrough
 		case "-LIST":
 			action = List
+
 		case "-A":
 			fallthrough
 		case "--ALL":
 			fallthrough
 		case "-ALL":
 			showAll = true
+
 		case "-H":
 			fallthrough
 		case "--HELP":
@@ -180,48 +188,86 @@ func loadRegistered() {
 	}
 	lines := strings.Split(string(raw), "\n")
 
-	// Filter blank and "#" commented lines
 	for _, line := range lines {
 		path := strings.TrimSpace(line)
-		if len(path) != 0 && !strings.HasPrefix(path, "#") {
+		if !contains(registered, path) || path == "" || strings.HasPrefix(path, commentIndicator) {
 			registered = append(registered, path)
 		}
+	}
+	// Remove trailing empty lines if they exist
+	for len(registered) != 0 && registered[len(registered)-1] == "" {
+		registered = registered[:len(registered)-1]
 	}
 }
 
 func listRegistered() {
-	switch len(registered) {
+	var output string
+	var count int
+	for _, dir := range registered {
+		if len(dir) != 0 && !strings.HasPrefix(dir, commentIndicator) {
+			count++
+			output += "  " + dir + "\n"
+		}
+	}
+	switch count {
 	case 0:
 		fmt.Println("No paths registered")
 	case 1:
 		fmt.Println("1 path registered:")
 	default:
-		fmt.Println(len(registered), "paths registered:")
+		fmt.Println(count, "paths registered:")
 	}
-	for _, dir := range registered {
-		fmt.Println("  " + dir)
-	}
+	fmt.Println(output)
 }
 
 func removePaths(except []string) {
 	os.Remove(store)
-	f, err := os.OpenFile(store, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(store, os.O_RDWR|os.O_CREATE, permissions)
 	if err != nil {
 		fmt.Println("error saving paths:", err.Error())
+		fmt.Println("dumping lines:")
 		for _, path := range registered {
 			fmt.Println(path)
 		}
 	}
 	defer f.Close()
+	firstWrite := true
 	for _, path := range registered {
 		if !contains(except, path) {
-			f.WriteString(path + "\n")
+			if !firstWrite {
+				f.WriteString("\n")
+			}
+			f.WriteString(path)
+			firstWrite = false
+		}
+	}
+}
+
+func commentPaths(except []string) {
+	os.Remove(store)
+	f, err := os.OpenFile(store, os.O_RDWR|os.O_CREATE, permissions)
+	if err != nil {
+		fmt.Println("error saving paths:", err.Error())
+		fmt.Println("dumping lines:")
+		for _, path := range registered {
+			fmt.Println(path)
+		}
+	}
+	defer f.Close()
+	for i, path := range registered {
+		if !contains(except, path) {
+			f.WriteString(path)
+		} else {
+			f.WriteString(commentIndicator + path)
+		}
+		if i+1 != len(registered) {
+			f.WriteString("\n")
 		}
 	}
 }
 
 func registerPaths(targets []string) {
-	f, err := os.OpenFile(store, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
+	f, err := os.OpenFile(store, os.O_RDWR|os.O_APPEND|os.O_CREATE, permissions)
 	if err != nil {
 		fmt.Println("error registering path:", err.Error())
 	}
@@ -237,7 +283,7 @@ func registerPaths(targets []string) {
 			continue
 		}
 
-		f.WriteString(target + "\n")
+		f.WriteString("\n" + target)
 	}
 }
 
@@ -255,9 +301,13 @@ func getStatuses() {
 	nameWidth := 0
 	branchWidth := 0
 	for i, path := range registered {
+		if len(path) == 0 || strings.HasPrefix(path, commentIndicator) {
+			continue
+		}
 		if !isRepo(path) {
-			fmt.Println(path, "no longer appears to be a git repo, unregistering")
-			removePaths([]string{path})
+			fmt.Println(path, "no longer appears to be a git repo, commenting it out")
+			commentPaths([]string{path})
+			continue
 		}
 		repo := getStatus(path)
 		if (repo.ShouldReport || showAll) && len(repo.Name) > nameWidth {
