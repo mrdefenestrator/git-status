@@ -31,13 +31,15 @@ type Action int
 
 // x
 const (
-	None Action = iota
-	Add
-	Delete
-	List
-	Help
+	ActionNone Action = iota
+	ActionAdd
+	ActionDelete
+	ActionList
+	ActionHelp
+	ActionVersion
 )
 
+const version string = "1.1"
 const storeName string = ".git-status"
 const commentIndicator string = "#"
 const permissions os.FileMode = 0644
@@ -58,7 +60,7 @@ func init() {
 		case "--ADD":
 			fallthrough
 		case "-ADD":
-			action = Add
+			action = ActionAdd
 
 		case "-":
 			fallthrough
@@ -77,7 +79,7 @@ func init() {
 		case "--REMOVE":
 			fallthrough
 		case "-REMOVE":
-			action = Delete
+			action = ActionDelete
 
 		case "-L":
 			fallthrough
@@ -88,7 +90,7 @@ func init() {
 		case "--LIST":
 			fallthrough
 		case "-LIST":
-			action = List
+			action = ActionList
 
 		case "-A":
 			fallthrough
@@ -104,10 +106,17 @@ func init() {
 		case "-HELP":
 			fallthrough
 		case "/?":
-			action = Help
+			action = ActionHelp
+
+		case "-V":
+			fallthrough
+		case "--VERSION":
+			fallthrough
+		case "-VERSION":
+			action = ActionVersion
 		}
 	}
-	if action == Add || action == Delete {
+	if action == ActionAdd || action == ActionDelete {
 		if len(os.Args) >= 3 {
 			for _, arg := range os.Args[2:] {
 				abs, err := filepath.Abs(arg)
@@ -118,7 +127,7 @@ func init() {
 				paths = append(paths, abs)
 			}
 		} else {
-			action = Help
+			action = ActionHelp
 		}
 	}
 
@@ -138,14 +147,16 @@ func main() {
 	}
 	loadRegistered()
 	switch action {
-	case Add:
+	case ActionAdd:
 		registerPaths(paths)
-	case Delete:
+	case ActionDelete:
 		removePaths(paths)
-	case List:
+	case ActionList:
 		listRegistered()
-	case Help:
+	case ActionHelp:
 		printUsage()
+	case ActionVersion:
+		fmt.Println("git-status v" + version)
 	default:
 		getStatuses()
 	}
@@ -157,7 +168,9 @@ func printUsage() {
   -delete  Remove a folder, stop monitoring
   -list    List all monitored paths
   -a       Show status on all registered paths
-  -h       Show this help`
+  -h       Show this help
+	
+v` + version
 	fmt.Println(usage)
 }
 
