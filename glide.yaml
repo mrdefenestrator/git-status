@@ -1,0 +1,3 @@
+package: bitbucket.org/mrdefenestrator/git-status
+import:
+- package: github.com/fatih/color
