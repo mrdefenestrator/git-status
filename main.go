@@ -169,8 +169,7 @@ func printUsage() {
   -list    List all monitored paths
   -a       Show status on all registered paths
   -h       Show this help
-	
-v` + version
+  -v       Print version`
 	fmt.Println(usage)
 }
 
