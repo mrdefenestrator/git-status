@@ -10,12 +10,12 @@ FILE = '~/.git-status'
 
 USAGE = '''\
 git_versions.py [flags] [spec]
-    Prints the latest versions of the git repositories
+  Prints the latest versions of the git repositories according to semver
 
-    -h, --help    Show this help
-        --nofetch Do not fetch git repo
-    
-    spec          She semantic version specification upon which to match 
+  spec               Semantic version specification upon which to match
+  flags
+    -h, --help     Show this help
+        --no-fetch Do not fetch git repo
 '''
 
 
@@ -92,7 +92,7 @@ def main():
         print(USAGE)
         exit(-1)
 
-    fetch = '--nofetch' not in sys.argv
+    fetch = '--no-fetch' not in sys.argv
     args = [_ for _ in sys.argv[1:] if _[0] != '-']
     spec = args[0] if args else None
 
