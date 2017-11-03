@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import os
 import sys
+
+THIS_DIR = os.path.abspath(os.path.dirname(sys.argv[0]))
+activate_script = os.path.join(THIS_DIR, 'venv', 'bin', 'activate_this.py')
+exec(open(activate_script).read(), dict(__file__=activate_script))
+
 import semantic_version
 from distutils.version import StrictVersion
 import subprocess
